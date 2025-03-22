@@ -17,4 +17,4 @@ if (getApps().length === 0) {
     app = getApp();
 }
 
-export default app
+export {app}

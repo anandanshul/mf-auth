@@ -29,9 +29,9 @@ export function PhoneRegistration({getPhoneNumber}: Props) {
                         <Chat weight='fill' className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>
                         <input
                             ref={phoneNumber}
-                            type="text"
-                            name="password"
-                            id="password"
+                            type="tel"
+                            name="phone"
+                            id="phone"
                             placeholder="Insert your phone number"
                             className="focus:outline-none block w-full rounded-xl placeholder-gray-500 bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition duration-300 invalid:ring-2 invalid:ring-red-400 focus:ring-2 focus:ring-black"
                         />
