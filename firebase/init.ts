@@ -8,7 +8,6 @@ const firebaseConfig = {
   messagingSenderId: "576561087289",
   appId: "1:576561087289:web:74053cc66472b4f121dee8"
 };
-
 let app: FirebaseApp;
 
 if (getApps().length === 0) {

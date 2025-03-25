@@ -16,45 +16,70 @@ export function CreateMultiFactorAuthentication({currentUser}: Props) {
     const [password, setPassword] = useState<string>("");
 
     async function getPhoneNumber(phoneNumber: string) {
-        if (!currentUser || !recaptcha || !password) {
-            notify("❌ Please enter your password before proceeding.");
+        // Validate inputs
+        if (!currentUser) {
+            notify("❌ No user logged in.");
             return;
         }
 
-        const reauthSuccess = await reauthenticateUser(currentUser, password);
-        if (!reauthSuccess) {
-            notify("❌ Reauthentication failed. Try again.");
+        if (!recaptcha) {
+            notify("❌ reCAPTCHA not initialized. Please refresh.");
             return;
         }
 
-        const verificationId = await verifyPhoneNumber(currentUser, phoneNumber, recaptcha);
-        if (!verificationId) {
-            notify("❌ Something went wrong. Try again.");
-        } else {
-            setVerificationCodeId(verificationId);
+        if (!password) {
+            notify("❌ Please enter your current password.");
+            return;
+        }
+
+        // Validate phone number (basic format check)
+        const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+        if (!phoneRegex.test(phoneNumber)) {
+            notify("❌ Invalid phone number format.");
+            return;
+        }
+
+        try {
+            // Reauthenticate user
+            const reauthSuccess = await reauthenticateUser(currentUser, password);
+            if (!reauthSuccess) {
+                notify("❌ Reauthentication failed. Check your password.");
+                return;
+            }
+
+            // Verify phone number
+            const verificationId = await verifyPhoneNumber(currentUser, phoneNumber, recaptcha);
+            if (!verificationId) {
+                notify("❌ Phone verification failed. Try again.");
+            } else {
+                setVerificationCodeId(verificationId);
+            }
+        } catch (error) {
+            console.error("MFA Enrollment Error:", error);
+            notify("❌ An unexpected error occurred.");
         }
     }
 
     return (
         <>
-            {
-                !verificationCodeId &&
+            {!verificationCodeId && (
                 <>
                     <input
                         type="password"
                         placeholder="Enter current password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="border rounded-md px-4 py-2 w-full"
+                        className="border rounded-md px-4 py-2 w-full mb-4"
                     />
                     <PhoneRegistration getPhoneNumber={getPhoneNumber} />
                 </>
-            }
-            {
-                verificationCodeId &&
-                currentUser &&
-                <CodeSignup currentUser={currentUser} verificationCodeId={verificationCodeId} />
-            }
+            )}
+            {verificationCodeId && currentUser && (
+                <CodeSignup 
+                    currentUser={currentUser} 
+                    verificationCodeId={verificationCodeId} 
+                />
+            )}
             <div id='sign-up'></div>
         </>
     )

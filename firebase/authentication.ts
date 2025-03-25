@@ -121,16 +121,24 @@ export async function verifyPhoneNumber(
   recaptchaVerifier: ApplicationVerifier
 ): Promise<false | string> {
   try {
+    if (!recaptchaVerifier) {
+      console.error("❌ RecaptchaVerifier is missing or not initialized.");
+      return false;
+    }
+
+    await recaptchaVerifier.verify(); // Refresh Recaptcha
+
     const session = await multiFactor(user).getSession();
     if (!session) {
       console.error("❌ Failed to get MFA session. Please reauthenticate.");
       return false;
     }
+
     const phoneInfoOptions = { phoneNumber, session };
     const phoneAuthProvider = new PhoneAuthProvider(auth);
     return await phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, recaptchaVerifier);
   } catch (e) {
-    console.error("❌ Error during phone verification (enrollment):", e);
+    console.error("❌ Error during phone verification:", e);
     return false;
   }
 }
@@ -172,51 +180,56 @@ export async function verifyUserMFA(
   error: MultiFactorError,
   recaptchaVerifier: ApplicationVerifier,
   selectedIndex: number
-): Promise<false | { verificationId: string; resolver: MultiFactorResolver } | void> {
+): Promise<false | { verificationId: string; resolver: MultiFactorResolver }> {
   try {
     const resolver = getMultiFactorResolver(auth, error);
 
+    // Detailed error checking
     if (!resolver.hints || resolver.hints.length === 0) {
-      console.error("No MFA factors enrolled for this user. Enroll MFA first.");
+      console.error("No MFA factors enrolled for this user.");
       return false;
     }
 
     if (selectedIndex < 0 || selectedIndex >= resolver.hints.length) {
-      console.error("Invalid factor selection index.");
+      console.error("Invalid MFA factor selection.");
       return false;
     }
 
-    if (
-      resolver.hints[selectedIndex].factorId ===
-      PhoneMultiFactorGenerator.FACTOR_ID
-    ) {
-      const phoneInfoOptions = {
-        multiFactorHint: resolver.hints[selectedIndex],
-        session: resolver.session,
-      };
-
-      const phoneAuthProvider = new PhoneAuthProvider(auth);
-
-      if (!recaptchaVerifier) {
-        console.error("RecaptchaVerifier is not initialized.");
-        return false;
-      }
-
-      const verificationId = await phoneAuthProvider.verifyPhoneNumber(
-        phoneInfoOptions,
-        recaptchaVerifier
-      );
-      return { verificationId, resolver };
-    } else {
-      console.error("Selected MFA factor is not phone-based.");
+    // Specifically check for phone-based MFA
+    if (resolver.hints[selectedIndex].factorId !== PhoneMultiFactorGenerator.FACTOR_ID) {
+      console.error("Only phone-based MFA is currently supported.");
       return false;
     }
+
+    // Validate reCAPTCHA
+    if (!recaptchaVerifier) {
+      console.error("reCAPTCHA verifier is required but not initialized.");
+      return false;
+    }
+
+    // Proceed with phone verification
+    const phoneInfoOptions = {
+      multiFactorHint: resolver.hints[selectedIndex],
+      session: resolver.session,
+    };
+
+    const phoneAuthProvider = new PhoneAuthProvider(auth);
+    const verificationId = await phoneAuthProvider.verifyPhoneNumber(
+      phoneInfoOptions,
+      recaptchaVerifier
+    );
+
+    return { verificationId, resolver };
   } catch (e) {
-    console.error("Error during MFA sign-in resolution:", e);
+    console.error("Comprehensive MFA verification error:", e);
+    // Log specific error details
+    if (e instanceof Error) {
+      console.error("Error Name:", e.name);
+      console.error("Error Message:", e.message);
+    }
     return false;
   }
 }
-
 /* ---------------------------------------------------------------------------
    Complete MFA sign-in resolution by verifying the SMS code provided by the user.
 --------------------------------------------------------------------------- */

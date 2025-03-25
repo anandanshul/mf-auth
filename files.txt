@@ -398,6 +398,1054 @@ export function CodeSignup({currentUser, verificationCodeId}: Props) {
 
 [FILE_START]components\CreateMultiFactorAuthentication.tsx
 'use client'
+import {useState} from "react";
+import {User} from "@firebase/auth";
+import {useRecaptcha} from "@/hooks/useRecaptcha";
+import {PhoneRegistration} from "@/components/PhoneRegistration";
+import {verifyPhoneNumber, reauthenticateUser} from "@/firebase/authentication";
+import {notify} from "@/utils/notify";
+import {CodeSignup} from "@/components/CodeSignup";
+
+type Props = {
+    currentUser: User | null
+}
+export function CreateMultiFactorAuthentication({currentUser}: Props) {
+    const recaptcha = useRecaptcha('sign-up');
+    const [verificationCodeId, setVerificationCodeId] = useState<string | null>(null);
+    const [password, setPassword] = useState<string>("");
+
+    async function getPhoneNumber(phoneNumber: string) {
+        if (!currentUser || !recaptcha || !password) {
+            notify("❌ Please enter your password before proceeding.");
+            return;
+        }
+
+        const reauthSuccess = await reauthenticateUser(currentUser, password);
+        if (!reauthSuccess) {
+            notify("❌ Reauthentication failed. Try again.");
+            return;
+        }
+
+        const verificationId = await verifyPhoneNumber(currentUser, phoneNumber, recaptcha);
+        if (!verificationId) {
+            notify("❌ Something went wrong. Try again.");
+        } else {
+            setVerificationCodeId(verificationId);
+        }
+    }
+
+    return (
+        <>
+            {
+                !verificationCodeId &&
+                <>
+                    <input
+                        type="password"
+                        placeholder="Enter current password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="border rounded-md px-4 py-2 w-full"
+                    />
+                    <PhoneRegistration getPhoneNumber={getPhoneNumber} />
+                </>
+            }
+            {
+                verificationCodeId &&
+                currentUser &&
+                <CodeSignup currentUser={currentUser} verificationCodeId={verificationCodeId} />
+            }
+            <div id='sign-up'></div>
+        </>
+    )
+}
+
+[FILE_END]components\CreateMultiFactorAuthentication.tsx
+
+[FILE_START]components\Input.tsx
+'use client'
+import {ChangeEvent, useState} from "react";
+
+type Props = {
+    index: number,
+    getValue: (value: string, index: number) => void
+}
+
+export function Input({index, getValue}: Props) {
+    const [value, setValue] = useState<string>('');
+
+    function checkValue(event: ChangeEvent<HTMLInputElement>) {
+        const currentValue = event.currentTarget.value.slice(-1);
+        setValue(currentValue);
+        getValue(currentValue, index);
+
+        const nextElement = event.currentTarget.nextSibling;
+        if (nextElement instanceof HTMLInputElement) {
+            nextElement.disabled = false;
+            nextElement.focus();
+        }
+    }
+
+    return (
+        <input
+            value={value}
+            disabled={index > 0}
+            onChange={checkValue}
+            className="transition ease-in-out duration-300 flex flex-1 items-center disabled:cursor-not-allowed border-2 outline-none focus:outline-none focus:shadow-[0_0_0_4px_rgba(209,213,218,0.45)] focus:border-2 h-[44px] md:h-[52px] w-full px-4 rounded-xl"
+            type="number"
+        />
+    )
+}
+[FILE_END]components\Input.tsx
+
+[FILE_START]components\Loading.tsx
+'use client'
+export function Loading() {
+  return (
+      <div className="bg-white h-screen w-screen">
+          <div className='flex flex-col justify-center items-center px-12 gap-y-12 pt-40'>
+              <h2 className="mt-20 text-3xl text-center font-bold text-gray-800">
+                  Loading...
+              </h2>
+          </div>
+      </div>
+  );
+}
+[FILE_END]components\Loading.tsx
+
+[FILE_START]components\Login.tsx
+'use client'
+import {At, GoogleLogo, Password} from "phosphor-react";
+import Link from "next/link";
+import {FormEvent, useRef} from "react";
+
+type Props = {
+    loginWithGoogle: () => void,
+    loginWithEmailAndPassword: (email: string, password: string) => void
+}
+
+export function Login({loginWithGoogle, loginWithEmailAndPassword}: Props) {
+    const email = useRef<HTMLInputElement>(null);
+    const password = useRef<HTMLInputElement>(null);
+
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        if (email.current && password.current) {
+            loginWithEmailAndPassword(email.current.value, password.current.value);
+        }
+    }
+
+    return (
+        <div className="bg-white md:w-[500px] rounded-xl p-8">
+            <h2 className="mt-20 mb-8 text-3xl font-bold text-center text-gray-800">Welcome back</h2>
+            <button
+                onClick={loginWithGoogle}
+                className="rounded-xl flex gap-x-4 mb-8 text-black h-11 w-full items-center justify-center px-6 border border-gray-500">
+                <GoogleLogo className='w-6 h-6'/>
+                <span className="relative text-base font-light">with Google</span>
+            </button>
+            <p className='text-center mb-8'>Or</p>
+            <form
+                className="space-y-8"
+                onSubmit={handleSubmit}
+            >
+                <div className="space-y-4">
+                    <div className="relative flex items-center">
+                        <At className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>
+                        <input
+                            ref={email}
+                            type="email"
+                            name="email"
+                            placeholder="Insert your email"
+                            className="focus:outline-none
+                                        block w-full rounded-xl placeholder-gray-500
+                                        bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition
+                                        duration-300 invalid:ring-2 invalid:ring-red-400
+                                        focus:ring-2 focus:ring-black"
+                        />
+                    </div>
+                </div>
+                <div className="space-y-4 my-6">
+                    <div className="relative flex items-center">
+                        <Password className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>
+                        <input
+                            ref={password}
+                            type="password"
+                            name="password"
+                            id="password"
+                            placeholder="Insert your password"
+                            className="focus:outline-none block w-full rounded-xl placeholder-gray-500 bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition duration-300 invalid:ring-2 invalid:ring-red-400 focus:ring-2 focus:ring-black"
+                        />
+                    </div>
+                </div>
+                <button type="submit"
+                        className="bg-black rounded-xl flex h-11 w-full items-center justify-center px-6">
+                                <span
+                                    className="text-base font-light text-white">
+                                    Login
+                                </span>
+                </button>
+                <p className="border-t border-gray-100 pt-6 text-center text-sm text-gray-500">
+                    Don't have an account ?<Link href="/sign-up" className="text-black"> Sign up</Link>
+                </p>
+            </form>
+        </div>
+    )
+}
+[FILE_END]components\Login.tsx
+
+[FILE_START]components\PhoneRegistration.tsx
+'use client'
+import {Chat} from "phosphor-react";
+import {useRef} from "react";
+
+type Props = {
+    getPhoneNumber: (phoneNumber: string, currentPassword: string) => void
+}
+
+export function PhoneRegistration({getPhoneNumber}: Props) {
+    const phoneNumber = useRef<HTMLInputElement>(null);
+    const password = useRef<HTMLInputElement>(null);
+
+    function handleClick() {
+        if (phoneNumber.current && password.current) {
+            getPhoneNumber(phoneNumber.current.value, password.current.value);
+        }
+    }
+
+    return (
+        <div className='flex justify-center items-center px-4'>
+            <div className="bg-white flex flex-col p-5 border-2 rounded-xl w-full max-w-md">
+                <h1 className='font-medium text-xl'>Provide your phone</h1>
+                <p className='text-gray-500 mt-2 text-sm'>Enter your phone number to receive the code</p>
+
+                <input
+                    ref={phoneNumber}
+                    type="tel"
+                    placeholder="Phone number"
+                    className="border rounded-md px-4 py-2 w-full mt-4"
+                />
+                <input
+                    ref={password}
+                    type="password"
+                    placeholder="Current password"
+                    className="border rounded-md px-4 py-2 w-full mt-2"
+                />
+
+                <button onClick={handleClick} className="bg-black text-white rounded-md px-4 py-2 mt-4">
+                    Send SMS
+                </button>
+            </div>
+        </div>
+    );
+}
+
+[FILE_END]components\PhoneRegistration.tsx
+
+[FILE_START]components\SignUp.tsx
+'use client'
+import {At, GoogleLogo, Password} from "phosphor-react";
+import Link from "next/link";
+import {signInWithGoogle, signUp} from "@/firebase/authentication";
+import {notify} from "@/utils/notify";
+import {FormEvent, useRef} from "react";
+
+export function SignUp() {
+    const email = useRef<HTMLInputElement>(null);
+    const password = useRef<HTMLInputElement>(null);
+
+    async function loginWithGoogle() {
+        const response = await signInWithGoogle();
+
+        if (response !== true) {
+            notify('Something went wrong');
+        }
+    }
+
+    async function createAnAccount(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+
+        if (email.current && password.current) {
+            const response = await signUp(email.current.value, password.current.value);
+
+            if (!response) {
+                notify('Something went wrong.');
+            }
+        }
+    }
+
+    return (
+        <div className="bg-white md:w-[500px] rounded-xl p-8">
+            <h2 className="mt-20 mb-8 text-3xl font-bold text-center text-gray-800">Create an account</h2>
+            <button
+                onClick={loginWithGoogle}
+                className="rounded-xl relative flex gap-x-4 mb-8 text-black h-11 w-full items-center justify-center px-6 border border-gray-500">
+                <GoogleLogo className='w-6 h-6'/>
+                <span className="relative text-base font-light">with Google</span>
+            </button>
+            <p className='text-center mb-8'>Or</p>
+            <form
+                className="space-y-8"
+                onSubmit={createAnAccount}
+            >
+                <div className="space-y-4">
+                    <div className="relative flex items-center">
+                        <At className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>
+                        <input
+                            ref={email}
+                            type="email"
+                            name="email"
+                            placeholder="Insert your email"
+                            className="focus:outline-none
+                                        block w-full rounded-xl placeholder-gray-500
+                                        bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition
+                                        duration-300 invalid:ring-2 invalid:ring-red-400
+                                        focus:ring-2 focus:ring-black"
+                        />
+                    </div>
+                </div>
+                <div className="space-y-4">
+                    <div className="relative flex items-center">
+                        <Password className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>
+                        <input
+                            ref={password}
+                            type="password"
+                            name="password"
+                            id="password"
+                            placeholder="Insert your password"
+                            className="focus:outline-none block w-full rounded-xl placeholder-gray-500 bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition duration-300 invalid:ring-2 invalid:ring-red-400 focus:ring-2 focus:ring-black"
+                        />
+                    </div>
+                </div>
+                <button type="submit"
+                        className="bg-black rounded-xl relative flex h-11 w-full items-center justify-center px-6 before:absolute before:inset-0 before:rounded-full before:bg-primary before:transition before:duration-300 hover:before:scale-105 active:duration-75 active:before:scale-95">
+                                <span
+                                    className="relative text-base font-light text-white">Sign Up</span>
+                </button>
+                <p className="border-t border-gray-100 pt-6 text-center text-sm text-gray-500">
+                    Do you have an account ?<Link href="/login" className="text-black"> Login</Link>
+                </p>
+            </form>
+        </div>
+    )
+}
+[FILE_END]components\SignUp.tsx
+
+[FILE_START]components\UserComponent.tsx
+'use client'
+import {logout, verifyIfUserIsEnrolled, verifyUserEmail} from "@/firebase/authentication";
+import {User} from "@firebase/auth";
+import Link from "next/link";
+import {notify} from "@/utils/notify";
+
+type Props = {
+    currentUser: User | null;
+}
+
+export function UserComponent({currentUser}: Props) {
+
+    async function sendEmail() {
+        if (currentUser) {
+            const response = await verifyUserEmail(currentUser);
+
+            if (response) {
+                notify('An Email has been sent to you');
+            }else {
+                notify('Something went wrong');
+            }
+        }
+    }
+
+    return (
+        <div className="bg-white h-screen w-screen">
+            <div className='flex flex-col justify-center items-center px-12 gap-y-12 pt-40'>
+                <h2 className="mt-20 text-3xl text-center font-bold text-gray-800">Hello 👋</h2>
+                {
+                    currentUser && currentUser.emailVerified && !verifyIfUserIsEnrolled(currentUser) &&
+                    <Link className='hover:text-black underline text-center w-full' href='/mfa'>
+                        Activate the multifactor authentication
+                    </Link>
+                }
+                {
+                    currentUser && !currentUser.emailVerified && !verifyIfUserIsEnrolled(currentUser) &&
+                    <button
+                        onClick={sendEmail}
+                        className='hover:text-black underline text-center w-full'>
+                        Verify your email
+                    </button>
+                }
+                <button
+                    onClick={logout}
+                    className="bg-black rounded-xl flex h-11 items-center justify-center px-6">
+                <span className="relative text-base font-light text-white">
+                    Disconnect
+                </span>
+                </button>
+            </div>
+        </div>
+    )
+}
+[FILE_END]components\UserComponent.tsx
+
+[DIR_END]components
+
+[FILE_START]eslint.config.mjs
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
+const eslintConfig = [
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+];
+
+export default eslintConfig;
+
+[FILE_END]eslint.config.mjs
+
+[FILE_START]files.json
+[
+  {
+    "name": "app",
+    "path": "mf-auth\\app",
+    "type": "directory",
+    "children": [
+      {
+        "name": "globals.css",
+        "path": "mf-auth\\app\\globals.css",
+        "type": "file",
+        "content": "@import \"tailwindcss\";\r\n\r\n:root {\r\n  --background: #ffffff;\r\n  --foreground: #171717;\r\n}\r\n\r\n@theme inline {\r\n  --color-background: var(--background);\r\n  --color-foreground: var(--foreground);\r\n  --font-sans: var(--font-geist-sans);\r\n  --font-mono: var(--font-geist-mono);\r\n}\r\n\r\n@media (prefers-color-scheme: dark) {\r\n  :root {\r\n    --background: #0a0a0a;\r\n    --foreground: #ededed;\r\n  }\r\n}\r\n\r\nbody {\r\n  background: var(--background);\r\n  color: var(--foreground);\r\n  font-family: Arial, Helvetica, sans-serif;\r\n}\r\n"
+      },
+      {
+        "name": "layout.tsx",
+        "path": "mf-auth\\app\\layout.tsx",
+        "type": "file",
+        "content": "import type { Metadata } from \"next\";\r\nimport { Geist, Geist_Mono } from \"next/font/google\";\r\nimport \"./globals.css\";\r\n\r\nconst geistSans = Geist({\r\n  variable: \"--font-geist-sans\",\r\n  subsets: [\"latin\"],\r\n});\r\n\r\nconst geistMono = Geist_Mono({\r\n  variable: \"--font-geist-mono\",\r\n  subsets: [\"latin\"],\r\n});\r\n\r\nexport const metadata: Metadata = {\r\n  title: \"Create Next App\",\r\n  description: \"Generated by create next app\",\r\n};\r\n\r\nexport default function RootLayout({\r\n  children,\r\n}: Readonly<{\r\n  children: React.ReactNode;\r\n}>) {\r\n  return (\r\n    <html lang=\"en\">\r\n      <body\r\n        className={`${geistSans.variable} ${geistMono.variable} antialiased`}\r\n      >\r\n        {children}\r\n      </body>\r\n    </html>\r\n  );\r\n}\r\n"
+      },
+      {
+        "name": "login",
+        "path": "mf-auth\\app\\login",
+        "type": "directory",
+        "children": [
+          {
+            "name": "page.tsx",
+            "path": "mf-auth\\app\\login\\page.tsx",
+            "type": "file",
+            "content": "'use client'\r\nimport {Login} from \"@/components/Login\";\r\nimport {login, signInWithGoogle, verifyUserMFA} from \"@/firebase/authentication\";\r\nimport {useRouter} from \"next/navigation\";\r\nimport {notify} from \"@/utils/notify\";\r\nimport {useRecaptcha} from \"@/hooks/useRecaptcha\";\r\nimport {useState} from \"react\";\r\nimport {MultiFactorResolver} from \"@firebase/auth\";\r\nimport {CodeSignIn} from \"@/components/CodeSignIn\";\r\n\r\nexport default function LoginPage() {\r\n    const router = useRouter();\r\n    const recaptcha = useRecaptcha('sign-in');\r\n    const [verificationId, setVerificationId] = useState<string>();\r\n    const [resolver, setResolver] = useState<MultiFactorResolver>();\r\n\r\n    async function loginWithGoogle() {\r\n        const response = await signInWithGoogle();\r\n\r\n        if (response === true) {\r\n            await router.push('/user');\r\n        }else {\r\n            await handleMFA(response);\r\n        }\r\n    }\r\n\r\n    async function loginWithEmailAndPassword(email: string, password: string) {\r\n        const response = await login(email, password);\r\n\r\n        if (response === true) {\r\n            await router.push('/user');\r\n        }else {\r\n            await handleMFA(response);\r\n        }\r\n    }\r\n\r\n    async function handleMFA(response: any) {\r\n        if (response.code === 'auth/multi-factor-auth-required' && recaptcha) {\r\n            const data = await verifyUserMFA(\r\n                response,\r\n                recaptcha,\r\n                0\r\n            )\r\n\r\n            if (!data) {\r\n                notify('Something went wrong.');\r\n            }else {\r\n                const {verificationId, resolver} = data;\r\n                setVerificationId(verificationId);\r\n                setResolver(resolver);\r\n            }\r\n        }else {\r\n            notify('Something went wrong');\r\n        }\r\n    }\r\n\r\n    return (\r\n        <>\r\n            {\r\n                !verificationId &&\r\n                !resolver &&\r\n                <Login\r\n                    loginWithGoogle={loginWithGoogle}\r\n                    loginWithEmailAndPassword={loginWithEmailAndPassword}\r\n                />\r\n            }\r\n            {\r\n                verificationId &&\r\n                resolver &&\r\n                <CodeSignIn\r\n                    verificationId={verificationId}\r\n                    resolver={resolver}\r\n                />\r\n            }\r\n            <div id='sign-in'></div>\r\n        </>\r\n    )\r\n}"
+          }
+        ]
+      },
+      {
+        "name": "mfa",
+        "path": "mf-auth\\app\\mfa",
+        "type": "directory",
+        "children": [
+          {
+            "name": "page.tsx",
+            "path": "mf-auth\\app\\mfa\\page.tsx",
+            "type": "file",
+            "content": "'use client'\r\nimport {useCurrentUser} from \"@/hooks/useCurrentUser\";\r\nimport {useRouter} from \"next/navigation\";\r\nimport {Loading} from \"@/components/Loading\";\r\nimport {CreateMultiFactorAuthentication} from \"@/components/CreateMultiFactorAuthentication\";\r\n\r\nexport default function MFAPage() {\r\n    const currentUser = useCurrentUser();\r\n    const router = useRouter();\r\n\r\n    if (currentUser === 'loading') {\r\n        return <Loading />\r\n    }\r\n\r\n    if (!currentUser) {\r\n        void router.push('/login');\r\n    }\r\n\r\n    return <CreateMultiFactorAuthentication currentUser={currentUser} />\r\n}"
+          }
+        ]
+      },
+      {
+        "name": "page.tsx",
+        "path": "mf-auth\\app\\page.tsx",
+        "type": "file",
+        "content": "\"use-client\"\r\nimport Image from \"next/image\";\r\n\r\nexport default function Home() {\r\n  return (\r\n    <>\r\n      Firebase MFA\r\n    </>    \r\n  );\r\n}\r\n"
+      },
+      {
+        "name": "sign-up",
+        "path": "mf-auth\\app\\sign-up",
+        "type": "directory",
+        "children": [
+          {
+            "name": "page.tsx",
+            "path": "mf-auth\\app\\sign-up\\page.tsx",
+            "type": "file",
+            "content": "'use client'\r\nimport { SignUp } from \"@/components/SignUp\";\r\nimport { useCurrentUser } from \"@/hooks/useCurrentUser\";\r\nimport { useRouter } from \"next/navigation\";\r\nimport { Loading } from \"@/components/Loading\";\r\nimport { useEffect } from \"react\";\r\n\r\nexport default function SignUpPage() {\r\n    const currentUser = useCurrentUser();\r\n    const router = useRouter();\r\n\r\n    useEffect(() => {\r\n        if (currentUser && currentUser !== 'loading') {\r\n            void router.push('/user');\r\n        }\r\n    }, [currentUser, router]);\r\n\r\n    if (currentUser === 'loading') {\r\n        return <Loading />;\r\n    }\r\n\r\n    return <SignUp />;\r\n}\r\n"
+          }
+        ]
+      },
+      {
+        "name": "user",
+        "path": "mf-auth\\app\\user",
+        "type": "directory",
+        "children": [
+          {
+            "name": "page.tsx",
+            "path": "mf-auth\\app\\user\\page.tsx",
+            "type": "file",
+            "content": "'use client'\r\nimport { useEffect } from \"react\";\r\nimport { UserComponent } from \"@/components/UserComponent\";\r\nimport { useCurrentUser } from \"@/hooks/useCurrentUser\";\r\nimport { Loading } from \"@/components/Loading\";\r\nimport { useRouter } from \"next/navigation\";\r\n\r\nexport default function UserPage() {\r\n    const currentUser = useCurrentUser();\r\n    const router = useRouter();\r\n\r\n    useEffect(() => {\r\n      if (currentUser === null) {\r\n        void router.push('login');\r\n      }\r\n    }, [currentUser, router]);\r\n\r\n    if (currentUser === 'loading') {\r\n        return <Loading />;\r\n    }\r\n\r\n    // While waiting for router.push to complete, you can return null\r\n    if (!currentUser) {\r\n        return null;\r\n    }\r\n\r\n    return <UserComponent currentUser={currentUser} />;\r\n}\r\n"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "components",
+    "path": "mf-auth\\components",
+    "type": "directory",
+    "children": [
+      {
+        "name": "Code.tsx",
+        "path": "mf-auth\\components\\Code.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport { useRouter } from \"next/navigation\";\r\nimport { Input } from \"@/components/Input\";\r\n\r\ntype Props = {\r\n  getCode: (code: string) => void;\r\n};\r\n\r\nexport function Code({ getCode }: Props) {\r\n  const router = useRouter();\r\n  let code = new Array<string>(6).fill(\"\");\r\n\r\n  function handleClick() {\r\n    const finalCode = code.reduce((previousValue, currentValue) => {\r\n      return previousValue.concat(currentValue);\r\n    });\r\n    getCode(finalCode);\r\n  }\r\n\r\n  return (\r\n    <div className=\"bg-white flex flex-col p-5 md:p-6  border-2 border-palladium rounded-xl w-full sm:max-w-[440px]\">\r\n      <div className=\"flex justify-between\">\r\n        <div>\r\n          <h1 className=\"font-medium text-[22px] leading-[130%] md:mr-8\">\r\n            Verify your phone\r\n          </h1>\r\n          <p className=\"text-slate-500 mt-2 text-base\">\r\n            We sent you an SMS code to your phone number\r\n          </p>\r\n        </div>\r\n      </div>\r\n      <div className=\"flex gap-x-4 mt-6 md:mt-8 pb-4\">\r\n        {code.map((value, index) => {\r\n          return (\r\n            <Input\r\n              key={index}\r\n              index={index}\r\n              getValue={(value, index) => {\r\n                code[index] = value;\r\n              }}\r\n            />\r\n          );\r\n        })}\r\n      </div>\r\n      <div className=\"flex mt-4 gap-x-4\">\r\n        <button\r\n          onClick={() => void router.push(\"/user\")}\r\n          className=\"rounded-xl flex gap-x-4 mb-8 text-black h-11 w-1/2 items-center justify-center px-6 border border-gray-500\"\r\n        >\r\n          Cancel\r\n        </button>\r\n        <button\r\n          onClick={handleClick}\r\n          className=\"bg-black rounded-xl flex h-11 w-1/2 items-center justify-center px-6\"\r\n        >\r\n          <span className=\"text-base font-light text-white\">Submit</span>\r\n        </button>\r\n      </div>\r\n    </div>\r\n  );\r\n}\r\n"
+      },
+      {
+        "name": "CodeSignIn.tsx",
+        "path": "mf-auth\\components\\CodeSignIn.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {MultiFactorResolver} from \"@firebase/auth\";\r\nimport {Code} from \"@/components/Code\";\r\nimport {verifyUserEnrolled} from \"@/firebase/authentication\";\r\nimport {useRouter} from \"next/navigation\";\r\nimport {notify} from \"@/utils/notify\";\r\n\r\ntype Props = {\r\n    verificationId: string,\r\n    resolver: MultiFactorResolver\r\n}\r\nexport function CodeSignIn({verificationId, resolver}: Props) {\r\n    const router = useRouter();\r\n\r\n    async function getCode(code: string) {\r\n        const response = await verifyUserEnrolled(\r\n            {\r\n                verificationId,\r\n                resolver\r\n            },\r\n            code\r\n        );\r\n\r\n        if (response) {\r\n            await router.push('/user');\r\n        }else {\r\n            notify('Something went wrong.');\r\n        }\r\n    }\r\n    return (\r\n        <Code\r\n            getCode={getCode}\r\n        />\r\n    )\r\n}"
+      },
+      {
+        "name": "CodeSignup.tsx",
+        "path": "mf-auth\\components\\CodeSignup.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {Code} from \"@/components/Code\";\r\nimport {User} from \"@firebase/auth\";\r\nimport {enrollUser} from \"@/firebase/authentication\";\r\nimport {useRouter} from \"next/navigation\";\r\nimport {notify} from \"@/utils/notify\";\r\n\r\ntype Props = {\r\n    currentUser: User,\r\n    verificationCodeId: string\r\n}\r\n\r\nexport function CodeSignup({currentUser, verificationCodeId}: Props) {\r\n    const router = useRouter();\r\n\r\n    async function getCode(code: string) {\r\n        const response = await enrollUser(\r\n            currentUser,\r\n            verificationCodeId,\r\n            code\r\n        );\r\n\r\n        if (response) {\r\n            await router.push('/user');\r\n        }else {\r\n            notify('Something went wrong.');\r\n        }\r\n    }\r\n\r\n    return <Code getCode={getCode} />\r\n}"
+      },
+      {
+        "name": "CreateMultiFactorAuthentication.tsx",
+        "path": "mf-auth\\components\\CreateMultiFactorAuthentication.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {User} from \"@firebase/auth\";\r\nimport {useRecaptcha} from \"@/hooks/useRecaptcha\";\r\nimport {PhoneRegistration} from \"@/components/PhoneRegistration\";\r\nimport {verifyPhoneNumber} from \"@/firebase/authentication\";\r\nimport {notify} from \"@/utils/notify\";\r\nimport {useState} from \"react\";\r\nimport {CodeSignup} from \"@/components/CodeSignup\";\r\n\r\ntype Props = {\r\n    currentUser: User | null\r\n}\r\nexport function CreateMultiFactorAuthentication({currentUser}: Props) {\r\n    const recaptcha = useRecaptcha('sign-up');\r\n    const [verificationCodeId, setVerificationCodeId] = useState<string | null>(null);\r\n\r\n    async function getPhoneNumber(phoneNumber: string) {\r\n        if (!currentUser || !recaptcha) {\r\n            return;\r\n        }\r\n\r\n        const verificationId = await verifyPhoneNumber(\r\n            currentUser,\r\n            phoneNumber,\r\n            recaptcha\r\n        );\r\n\r\n        if (!verificationId) {\r\n            notify('Something went wrong.');\r\n        }else {\r\n            setVerificationCodeId(verificationId);\r\n        }\r\n    }\r\n\r\n    return (\r\n        <>\r\n            {\r\n                !verificationCodeId &&\r\n                <PhoneRegistration\r\n                    getPhoneNumber={getPhoneNumber}\r\n                />\r\n            }\r\n            {\r\n                verificationCodeId &&\r\n                currentUser &&\r\n                <CodeSignup\r\n                    currentUser={currentUser}\r\n                    verificationCodeId={verificationCodeId}\r\n                />\r\n            }\r\n            <div id='sign-up'></div>\r\n        </>\r\n    )\r\n}"
+      },
+      {
+        "name": "Input.tsx",
+        "path": "mf-auth\\components\\Input.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {ChangeEvent, useState} from \"react\";\r\n\r\ntype Props = {\r\n    index: number,\r\n    getValue: (value: string, index: number) => void\r\n}\r\n\r\nexport function Input({index, getValue}: Props) {\r\n    const [value, setValue] = useState<string>('');\r\n\r\n    function checkValue(event: ChangeEvent<HTMLInputElement>) {\r\n        const currentValue = event.currentTarget.value.slice(-1);\r\n        setValue(currentValue);\r\n        getValue(currentValue, index);\r\n\r\n        const nextElement = event.currentTarget.nextSibling;\r\n        if (nextElement instanceof HTMLInputElement) {\r\n            nextElement.disabled = false;\r\n            nextElement.focus();\r\n        }\r\n    }\r\n\r\n    return (\r\n        <input\r\n            value={value}\r\n            disabled={index > 0}\r\n            onChange={checkValue}\r\n            className=\"transition ease-in-out duration-300 flex flex-1 items-center disabled:cursor-not-allowed border-2 outline-none focus:outline-none focus:shadow-[0_0_0_4px_rgba(209,213,218,0.45)] focus:border-2 h-[44px] md:h-[52px] w-full px-4 rounded-xl\"\r\n            type=\"number\"\r\n        />\r\n    )\r\n}"
+      },
+      {
+        "name": "Loading.tsx",
+        "path": "mf-auth\\components\\Loading.tsx",
+        "type": "file",
+        "content": "'use client'\r\nexport function Loading() {\r\n  return (\r\n      <div className=\"bg-white h-screen w-screen\">\r\n          <div className='flex flex-col justify-center items-center px-12 gap-y-12 pt-40'>\r\n              <h2 className=\"mt-20 text-3xl text-center font-bold text-gray-800\">\r\n                  Loading...\r\n              </h2>\r\n          </div>\r\n      </div>\r\n  );\r\n}"
+      },
+      {
+        "name": "Login.tsx",
+        "path": "mf-auth\\components\\Login.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {At, GoogleLogo, Password} from \"phosphor-react\";\r\nimport Link from \"next/link\";\r\nimport {FormEvent, useRef} from \"react\";\r\n\r\ntype Props = {\r\n    loginWithGoogle: () => void,\r\n    loginWithEmailAndPassword: (email: string, password: string) => void\r\n}\r\n\r\nexport function Login({loginWithGoogle, loginWithEmailAndPassword}: Props) {\r\n    const email = useRef<HTMLInputElement>(null);\r\n    const password = useRef<HTMLInputElement>(null);\r\n\r\n    function handleSubmit(event: FormEvent<HTMLFormElement>) {\r\n        event.preventDefault();\r\n\r\n        if (email.current && password.current) {\r\n            loginWithEmailAndPassword(email.current.value, password.current.value);\r\n        }\r\n    }\r\n\r\n    return (\r\n        <div className=\"bg-white md:w-[500px] rounded-xl p-8\">\r\n            <h2 className=\"mt-20 mb-8 text-3xl font-bold text-center text-gray-800\">Welcome back</h2>\r\n            <button\r\n                onClick={loginWithGoogle}\r\n                className=\"rounded-xl flex gap-x-4 mb-8 text-black h-11 w-full items-center justify-center px-6 border border-gray-500\">\r\n                <GoogleLogo className='w-6 h-6'/>\r\n                <span className=\"relative text-base font-light\">with Google</span>\r\n            </button>\r\n            <p className='text-center mb-8'>Or</p>\r\n            <form\r\n                className=\"space-y-8\"\r\n                onSubmit={handleSubmit}\r\n            >\r\n                <div className=\"space-y-4\">\r\n                    <div className=\"relative flex items-center\">\r\n                        <At className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>\r\n                        <input\r\n                            ref={email}\r\n                            type=\"email\"\r\n                            name=\"email\"\r\n                            placeholder=\"Insert your email\"\r\n                            className=\"focus:outline-none\r\n                                        block w-full rounded-xl placeholder-gray-500\r\n                                        bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition\r\n                                        duration-300 invalid:ring-2 invalid:ring-red-400\r\n                                        focus:ring-2 focus:ring-black\"\r\n                        />\r\n                    </div>\r\n                </div>\r\n                <div className=\"space-y-4 my-6\">\r\n                    <div className=\"relative flex items-center\">\r\n                        <Password className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>\r\n                        <input\r\n                            ref={password}\r\n                            type=\"password\"\r\n                            name=\"password\"\r\n                            id=\"password\"\r\n                            placeholder=\"Insert your password\"\r\n                            className=\"focus:outline-none block w-full rounded-xl placeholder-gray-500 bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition duration-300 invalid:ring-2 invalid:ring-red-400 focus:ring-2 focus:ring-black\"\r\n                        />\r\n                    </div>\r\n                </div>\r\n                <button type=\"submit\"\r\n                        className=\"bg-black rounded-xl flex h-11 w-full items-center justify-center px-6\">\r\n                                <span\r\n                                    className=\"text-base font-light text-white\">\r\n                                    Login\r\n                                </span>\r\n                </button>\r\n                <p className=\"border-t border-gray-100 pt-6 text-center text-sm text-gray-500\">\r\n                    Don't have an account ?<Link href=\"/sign-up\" className=\"text-black\"> Sign up</Link>\r\n                </p>\r\n            </form>\r\n        </div>\r\n    )\r\n}"
+      },
+      {
+        "name": "PhoneRegistration.tsx",
+        "path": "mf-auth\\components\\PhoneRegistration.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {Chat} from \"phosphor-react\";\r\nimport {useRouter} from \"next/navigation\";\r\nimport {useRef} from \"react\";\r\n\r\ntype Props = {\r\n    getPhoneNumber: (phoneNumber: string) => void\r\n}\r\n\r\nexport function PhoneRegistration({getPhoneNumber}: Props) {\r\n    const router = useRouter();\r\n    const phoneNumber = useRef<HTMLInputElement>(null);\r\n\r\n    function handleClick() {\r\n        if (phoneNumber.current) {\r\n            getPhoneNumber(phoneNumber.current.value);\r\n        }\r\n    }\r\n\r\n    return (\r\n        <div className='flex sm:justify-center items-center px-4 sm:px-0'>\r\n            <div className=\"bg-white flex flex-col p-5 md:p-6  border-2 shadow-md shadow-gray-100/10  border-palladium rounded-xl w-full sm:max-w-[440px]\">\r\n                <div className=\"flex flex-col justify-between\">\r\n                    <h1 className='font-medium text-[22px] leading-[130%] md:mr-8'>Provide your phone</h1>\r\n                    <p className='text-slate-500 mt-2 text-base'>Fill in your phone number to receive the code</p>\r\n                </div>\r\n                <div className=\"space-y-4 my-6\">\r\n                    <div className=\"relative flex items-center\">\r\n                        <Chat weight='fill' className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>\r\n                        <input\r\n                            ref={phoneNumber}\r\n                            type=\"tel\"\r\n                            name=\"phone\"\r\n                            id=\"phone\"\r\n                            placeholder=\"Insert your phone number\"\r\n                            className=\"focus:outline-none block w-full rounded-xl placeholder-gray-500 bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition duration-300 invalid:ring-2 invalid:ring-red-400 focus:ring-2 focus:ring-black\"\r\n                        />\r\n                    </div>\r\n                </div>\r\n                <div className=\"flex justify-between mt-4 gap-x-4\">\r\n                    <button\r\n                        onClick={() => void router.push('/user')}\r\n                        className='rounded-xl flex gap-x-4 mb-8 text-black h-11 w-1/2 items-center justify-center px-6 border border-gray-500'>Cancel</button>\r\n                    <button\r\n                        onClick={handleClick}\r\n                        className=\"bg-black rounded-xl flex h-11 w-1/2 items-center justify-center px-6\">\r\n                        <span\r\n                            className=\"text-base font-light text-white\">\r\n                            Send SMS\r\n                        </span>\r\n                    </button>\r\n                </div>\r\n            </div>\r\n        </div>\r\n    )\r\n}"
+      },
+      {
+        "name": "SignUp.tsx",
+        "path": "mf-auth\\components\\SignUp.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {At, GoogleLogo, Password} from \"phosphor-react\";\r\nimport Link from \"next/link\";\r\nimport {signInWithGoogle, signUp} from \"@/firebase/authentication\";\r\nimport {notify} from \"@/utils/notify\";\r\nimport {FormEvent, useRef} from \"react\";\r\n\r\nexport function SignUp() {\r\n    const email = useRef<HTMLInputElement>(null);\r\n    const password = useRef<HTMLInputElement>(null);\r\n\r\n    async function loginWithGoogle() {\r\n        const response = await signInWithGoogle();\r\n\r\n        if (response !== true) {\r\n            notify('Something went wrong');\r\n        }\r\n    }\r\n\r\n    async function createAnAccount(event: FormEvent<HTMLFormElement>) {\r\n        event.preventDefault();\r\n\r\n        if (email.current && password.current) {\r\n            const response = await signUp(email.current.value, password.current.value);\r\n\r\n            if (!response) {\r\n                notify('Something went wrong.');\r\n            }\r\n        }\r\n    }\r\n\r\n    return (\r\n        <div className=\"bg-white md:w-[500px] rounded-xl p-8\">\r\n            <h2 className=\"mt-20 mb-8 text-3xl font-bold text-center text-gray-800\">Create an account</h2>\r\n            <button\r\n                onClick={loginWithGoogle}\r\n                className=\"rounded-xl relative flex gap-x-4 mb-8 text-black h-11 w-full items-center justify-center px-6 border border-gray-500\">\r\n                <GoogleLogo className='w-6 h-6'/>\r\n                <span className=\"relative text-base font-light\">with Google</span>\r\n            </button>\r\n            <p className='text-center mb-8'>Or</p>\r\n            <form\r\n                className=\"space-y-8\"\r\n                onSubmit={createAnAccount}\r\n            >\r\n                <div className=\"space-y-4\">\r\n                    <div className=\"relative flex items-center\">\r\n                        <At className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>\r\n                        <input\r\n                            ref={email}\r\n                            type=\"email\"\r\n                            name=\"email\"\r\n                            placeholder=\"Insert your email\"\r\n                            className=\"focus:outline-none\r\n                                        block w-full rounded-xl placeholder-gray-500\r\n                                        bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition\r\n                                        duration-300 invalid:ring-2 invalid:ring-red-400\r\n                                        focus:ring-2 focus:ring-black\"\r\n                        />\r\n                    </div>\r\n                </div>\r\n                <div className=\"space-y-4\">\r\n                    <div className=\"relative flex items-center\">\r\n                        <Password className='w-6 h-6 absolute left-4 inset-y-0 my-auto'/>\r\n                        <input\r\n                            ref={password}\r\n                            type=\"password\"\r\n                            name=\"password\"\r\n                            id=\"password\"\r\n                            placeholder=\"Insert your password\"\r\n                            className=\"focus:outline-none block w-full rounded-xl placeholder-gray-500 bg-gray-100 pl-12 pr-4 h-12 text-gray-600 transition duration-300 invalid:ring-2 invalid:ring-red-400 focus:ring-2 focus:ring-black\"\r\n                        />\r\n                    </div>\r\n                </div>\r\n                <button type=\"submit\"\r\n                        className=\"bg-black rounded-xl relative flex h-11 w-full items-center justify-center px-6 before:absolute before:inset-0 before:rounded-full before:bg-primary before:transition before:duration-300 hover:before:scale-105 active:duration-75 active:before:scale-95\">\r\n                                <span\r\n                                    className=\"relative text-base font-light text-white\">Sign Up</span>\r\n                </button>\r\n                <p className=\"border-t border-gray-100 pt-6 text-center text-sm text-gray-500\">\r\n                    Do you have an account ?<Link href=\"/login\" className=\"text-black\"> Login</Link>\r\n                </p>\r\n            </form>\r\n        </div>\r\n    )\r\n}"
+      },
+      {
+        "name": "UserComponent.tsx",
+        "path": "mf-auth\\components\\UserComponent.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {logout, verifyIfUserIsEnrolled, verifyUserEmail} from \"@/firebase/authentication\";\r\nimport {User} from \"@firebase/auth\";\r\nimport Link from \"next/link\";\r\nimport {notify} from \"@/utils/notify\";\r\n\r\ntype Props = {\r\n    currentUser: User | null;\r\n}\r\n\r\nexport function UserComponent({currentUser}: Props) {\r\n\r\n    async function sendEmail() {\r\n        if (currentUser) {\r\n            const response = await verifyUserEmail(currentUser);\r\n\r\n            if (response) {\r\n                notify('An Email has been sent to you');\r\n            }else {\r\n                notify('Something went wrong');\r\n            }\r\n        }\r\n    }\r\n\r\n    return (\r\n        <div className=\"bg-white h-screen w-screen\">\r\n            <div className='flex flex-col justify-center items-center px-12 gap-y-12 pt-40'>\r\n                <h2 className=\"mt-20 text-3xl text-center font-bold text-gray-800\">Hello 👋</h2>\r\n                {\r\n                    currentUser && currentUser.emailVerified && !verifyIfUserIsEnrolled(currentUser) &&\r\n                    <Link className='hover:text-black underline text-center w-full' href='/mfa'>\r\n                        Activate the multifactor authentication\r\n                    </Link>\r\n                }\r\n                {\r\n                    currentUser && !currentUser.emailVerified && !verifyIfUserIsEnrolled(currentUser) &&\r\n                    <button\r\n                        onClick={sendEmail}\r\n                        className='hover:text-black underline text-center w-full'>\r\n                        Verify your email\r\n                    </button>\r\n                }\r\n                <button\r\n                    onClick={logout}\r\n                    className=\"bg-black rounded-xl flex h-11 items-center justify-center px-6\">\r\n                <span className=\"relative text-base font-light text-white\">\r\n                    Disconnect\r\n                </span>\r\n                </button>\r\n            </div>\r\n        </div>\r\n    )\r\n}"
+      }
+    ]
+  },
+  {
+    "name": "eslint.config.mjs",
+    "path": "mf-auth\\eslint.config.mjs",
+    "type": "file",
+    "content": "import { dirname } from \"path\";\r\nimport { fileURLToPath } from \"url\";\r\nimport { FlatCompat } from \"@eslint/eslintrc\";\r\n\r\nconst __filename = fileURLToPath(import.meta.url);\r\nconst __dirname = dirname(__filename);\r\n\r\nconst compat = new FlatCompat({\r\n  baseDirectory: __dirname,\r\n});\r\n\r\nconst eslintConfig = [\r\n  ...compat.extends(\"next/core-web-vitals\", \"next/typescript\"),\r\n];\r\n\r\nexport default eslintConfig;\r\n"
+  },
+  {
+    "name": "firebase",
+    "path": "mf-auth\\firebase",
+    "type": "directory",
+    "children": [
+      {
+        "name": "authentication.ts",
+        "path": "mf-auth\\firebase\\authentication.ts",
+        "type": "file",
+        "content": "import {\r\n  ApplicationVerifier,\r\n  Auth,\r\n  createUserWithEmailAndPassword,\r\n  getAuth,\r\n  getMultiFactorResolver,\r\n  GoogleAuthProvider,\r\n  multiFactor,\r\n  MultiFactorError,\r\n  MultiFactorResolver,\r\n  PhoneAuthProvider,\r\n  PhoneMultiFactorGenerator,\r\n  sendEmailVerification,\r\n  signInWithEmailAndPassword,\r\n  signInWithPopup,\r\n  signOut,\r\n  User,\r\n} from \"@firebase/auth\";\r\nimport {app} from \"@/firebase/init\";\r\n// import {getModuleResolver} from \"@typescript-eslint/typescript-estree/dist/create-program/shared\";\r\n\r\nexport const auth: Auth = getAuth(app);\r\n\r\nexport async function signInWithGoogle(): Promise<any> {\r\n  try {\r\n    await signInWithPopup(auth, new GoogleAuthProvider());\r\n    return true;\r\n  } catch (e) {\r\n    return e;\r\n  }\r\n}\r\n\r\nexport async function signUp(\r\n  email: string,\r\n  password: string\r\n): Promise<boolean> {\r\n  try {\r\n    await createUserWithEmailAndPassword(auth, email, password);\r\n    return true;\r\n  } catch (e) {\r\n    return false;\r\n  }\r\n}\r\n\r\nexport async function login(email: string, password: string): Promise<any> {\r\n  try {\r\n    await signInWithEmailAndPassword(auth, email, password);\r\n    return true;\r\n  } catch (e) {\r\n    return e;\r\n  }\r\n}\r\n\r\nexport async function logout(): Promise<boolean> {\r\n  try {\r\n    await signOut(auth);\r\n    return true;\r\n  } catch (e) {\r\n    return false;\r\n  }\r\n}\r\n\r\nexport function verifyIfUserIsEnrolled(user: User) {\r\n  const enrolledFactors = multiFactor(user).enrolledFactors;\r\n  return enrolledFactors.length > 0;\r\n}\r\n\r\nexport async function verifyPhoneNumber(\r\n  user: User,\r\n  phoneNumber: string,\r\n  recaptchaVerifier: ApplicationVerifier\r\n): Promise<false | string> {\r\n  const session = await multiFactor(user).getSession();\r\n  if (!session) {\r\n    console.error(\"Failed to get MFA session. Check MFA configuration.\");\r\n    return false;\r\n  }\r\n\r\n  const phoneInfoOptions = {\r\n    phoneNumber,\r\n    session,\r\n  };\r\n\r\n  const phoneAuthProvider = new PhoneAuthProvider(auth);\r\n  try {\r\n    return await phoneAuthProvider.verifyPhoneNumber(\r\n      phoneInfoOptions,\r\n      recaptchaVerifier\r\n    );\r\n  } catch (e) {\r\n    return false;\r\n  }\r\n}\r\n\r\nexport async function enrollUser(\r\n  user: User,\r\n  verificationCodeId: string,\r\n  verificationCode: string\r\n) {\r\n  const phoneAuthCredential = PhoneAuthProvider.credential(\r\n    verificationCodeId,\r\n    verificationCode\r\n  );\r\n  const multiFactorAssertion =\r\n    PhoneMultiFactorGenerator.assertion(phoneAuthCredential);\r\n\r\n  try {\r\n    await multiFactor(user).enroll(\r\n      multiFactorAssertion,\r\n      \"Personal Phone Number\"\r\n    );\r\n    return true;\r\n  } catch (e) {\r\n    return false;\r\n  }\r\n}\r\n\r\nexport async function verifyUserMFA(\r\n  error: MultiFactorError,\r\n  recaptchaVerifier: ApplicationVerifier,\r\n  selectedIndex: number\r\n): Promise<\r\n  false | { verificationId: string; resolver: MultiFactorResolver } | void\r\n> {\r\n  const resolver = getMultiFactorResolver(auth, error);\r\n\r\n  if (\r\n    resolver.hints[selectedIndex].factorId ===\r\n    PhoneMultiFactorGenerator.FACTOR_ID\r\n  ) {\r\n    const phoneInfoOptions = {\r\n      multiFactorHint: resolver.hints[selectedIndex],\r\n      session: resolver.session,\r\n    };\r\n\r\n    const phoneAuthProvider = new PhoneAuthProvider(auth);\r\n\r\n    try {\r\n      if (!recaptchaVerifier) {\r\n        console.error(\"RecaptchaVerifier is not initialized.\");\r\n        return false;\r\n      }\r\n\r\n      const verificationId = await phoneAuthProvider.verifyPhoneNumber(\r\n        phoneInfoOptions,\r\n        recaptchaVerifier\r\n      );\r\n      return { verificationId, resolver };\r\n    } catch (e) {\r\n      console.error(\"Error verifying phone number:\", e);\r\n      return false;\r\n    }\r\n  }\r\n}\r\n\r\nexport async function verifyUserEnrolled(\r\n  verificationMFA: { verificationId: string; resolver: MultiFactorResolver },\r\n  verificationCode: string\r\n) {\r\n  const { verificationId, resolver } = verificationMFA;\r\n  const credentials = PhoneAuthProvider.credential(\r\n    verificationId,\r\n    verificationCode\r\n  );\r\n  const multiFactorAssertion = PhoneMultiFactorGenerator.assertion(credentials);\r\n\r\n  try {\r\n    await resolver.resolveSignIn(multiFactorAssertion);\r\n    return true;\r\n  } catch (e) {\r\n    return false;\r\n  }\r\n}\r\n\r\nexport async function verifyUserEmail(user: User): Promise<boolean> {\r\n  try {\r\n    await sendEmailVerification(user);\r\n    return true;\r\n  } catch (e) {\r\n    return false;\r\n  }\r\n}\r\n"
+      },
+      {
+        "name": "init.ts",
+        "path": "mf-auth\\firebase\\init.ts",
+        "type": "file",
+        "content": "import {FirebaseApp, getApp, getApps, initializeApp} from \"@firebase/app\";\r\n\r\nconst firebaseConfig = {\r\n  apiKey: \"AIzaSyCnEUnD4vgRS9gNu8iAEw0lNxTTc_94Bg4\",\r\n  authDomain: \"fir-mfa-e8bd4.firebaseapp.com\",\r\n  projectId: \"fir-mfa-e8bd4\",\r\n  storageBucket: \"fir-mfa-e8bd4.firebasestorage.app\",\r\n  messagingSenderId: \"576561087289\",\r\n  appId: \"1:576561087289:web:74053cc66472b4f121dee8\"\r\n};\r\n\r\nlet app: FirebaseApp;\r\n\r\nif (getApps().length === 0) {\r\n    app = initializeApp(firebaseConfig);\r\n}else {\r\n    app = getApp();\r\n}\r\n\r\nexport {app}"
+      }
+    ]
+  },
+  {
+    "name": "hooks",
+    "path": "mf-auth\\hooks",
+    "type": "directory",
+    "children": [
+      {
+        "name": "useCurrentUser.tsx",
+        "path": "mf-auth\\hooks\\useCurrentUser.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {useEffect, useState} from \"react\";\r\nimport {onAuthStateChanged, User} from \"@firebase/auth\";\r\nimport {auth} from \"@/firebase/authentication\";\r\n\r\nexport function useCurrentUser() {\r\n    const [currentUser, setCurrentUser] = useState<User | null | \"loading\">(\"loading\");\r\n\r\n    useEffect(() => {\r\n        const unsubscribe = onAuthStateChanged(auth, (user) => {\r\n            setCurrentUser(user);\r\n        });\r\n\r\n        return () => unsubscribe();\r\n    })\r\n\r\n    return currentUser;\r\n}"
+      },
+      {
+        "name": "useRecaptcha.tsx",
+        "path": "mf-auth\\hooks\\useRecaptcha.tsx",
+        "type": "file",
+        "content": "'use client'\r\nimport {useEffect, useState} from \"react\";\r\nimport {ApplicationVerifier, RecaptchaVerifier} from \"@firebase/auth\";\r\nimport {auth} from \"@/firebase/authentication\";\r\n\r\nexport function useRecaptcha(componentId: string) {\r\n    const [recaptcha, setRecaptcha] = useState<ApplicationVerifier>();\r\n\r\n    useEffect(() => {\r\n        const recaptchaVerifier = new RecaptchaVerifier(auth, componentId, {\r\n            \"size\": \"invisible\",\r\n            \"callback\": () => {}\r\n        });\r\n\r\n        setRecaptcha(recaptchaVerifier);\r\n\r\n        return () => {\r\n            recaptchaVerifier.clear();\r\n        }\r\n    }, [componentId]);\r\n\r\n    return recaptcha;\r\n}"
+      }
+    ]
+  },
+  {
+    "name": "next.config.ts",
+    "path": "mf-auth\\next.config.ts",
+    "type": "file",
+    "content": "import type { NextConfig } from \"next\";\r\n\r\nconst nextConfig: NextConfig = {\r\n  /* config options here */\r\n};\r\n\r\nexport default nextConfig;\r\n"
+  },
+  {
+    "name": "package.json",
+    "path": "mf-auth\\package.json",
+    "type": "file",
+    "content": "{\r\n  \"name\": \"mf-auth\",\r\n  \"version\": \"0.1.0\",\r\n  \"private\": true,\r\n  \"scripts\": {\r\n    \"dev\": \"next dev --turbopack\",\r\n    \"build\": \"next build\",\r\n    \"start\": \"next start\",\r\n    \"lint\": \"next lint\"\r\n  },\r\n  \"dependencies\": {\r\n    \"firebase\": \"^11.5.0\",\r\n    \"next\": \"15.2.3\",\r\n    \"phosphor-react\": \"^1.4.1\",\r\n    \"react\": \"^19.0.0\",\r\n    \"react-dom\": \"^19.0.0\",\r\n    \"react-hot-toast\": \"^2.5.2\"\r\n  },\r\n  \"devDependencies\": {\r\n    \"@eslint/eslintrc\": \"^3\",\r\n    \"@tailwindcss/postcss\": \"^4\",\r\n    \"@types/node\": \"^20\",\r\n    \"@types/react\": \"^19\",\r\n    \"@types/react-dom\": \"^19\",\r\n    \"eslint\": \"^9\",\r\n    \"eslint-config-next\": \"15.2.3\",\r\n    \"tailwindcss\": \"^4\",\r\n    \"typescript\": \"^5\"\r\n  }\r\n}\r\n"
+  },
+  {
+    "name": "postcss.config.mjs",
+    "path": "mf-auth\\postcss.config.mjs",
+    "type": "file",
+    "content": "const config = {\r\n  plugins: [\"@tailwindcss/postcss\"],\r\n};\r\n\r\nexport default config;\r\n"
+  },
+  {
+    "name": "public",
+    "path": "mf-auth\\public",
+    "type": "directory",
+    "children": []
+  },
+  {
+    "name": "README.md",
+    "path": "mf-auth\\README.md",
+    "type": "file",
+    "content": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).\r\n\r\n## Getting Started\r\n\r\nFirst, run the development server:\r\n\r\n```bash\r\nnpm run dev\r\n# or\r\nyarn dev\r\n# or\r\npnpm dev\r\n# or\r\nbun dev\r\n```\r\n\r\nOpen [http://localhost:3000](http://localhost:3000) with your browser to see the result.\r\n\r\nYou can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.\r\n\r\nThis project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.\r\n\r\n## Learn More\r\n\r\nTo learn more about Next.js, take a look at the following resources:\r\n\r\n- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.\r\n- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.\r\n\r\nYou can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!\r\n\r\n## Deploy on Vercel\r\n\r\nThe easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.\r\n\r\nCheck out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.\r\n# mf-auth\r\n"
+  },
+  {
+    "name": "utils",
+    "path": "mf-auth\\utils",
+    "type": "directory",
+    "children": [
+      {
+        "name": "notify.ts",
+        "path": "mf-auth\\utils\\notify.ts",
+        "type": "file",
+        "content": "\"use client\"\r\nimport toast from \"react-hot-toast\";\r\n\r\nexport function notify(message: string) {\r\n    toast(message, {\r\n        duration: 5000,\r\n        position: \"top-right\"\r\n    });\r\n}"
+      }
+    ]
+  }
+]
+[FILE_END]files.json
+
+[FILE_START]files.txt
+[DIR_START]app
+[FILE_START]app\globals.css
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+[FILE_END]app\globals.css
+
+[FILE_START]app\layout.tsx
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        {children}
+      </body>
+    </html>
+  );
+}
+
+[FILE_END]app\layout.tsx
+
+[DIR_START]app\login
+[FILE_START]app\login\page.tsx
+'use client'
+import {Login} from "@/components/Login";
+import {login, signInWithGoogle, verifyUserMFA} from "@/firebase/authentication";
+import {useRouter} from "next/navigation";
+import {notify} from "@/utils/notify";
+import {useRecaptcha} from "@/hooks/useRecaptcha";
+import {useState} from "react";
+import {MultiFactorResolver} from "@firebase/auth";
+import {CodeSignIn} from "@/components/CodeSignIn";
+
+export default function LoginPage() {
+    const router = useRouter();
+    const recaptcha = useRecaptcha('sign-in');
+    const [verificationId, setVerificationId] = useState<string>();
+    const [resolver, setResolver] = useState<MultiFactorResolver>();
+
+    async function loginWithGoogle() {
+        const response = await signInWithGoogle();
+
+        if (response === true) {
+            await router.push('/user');
+        }else {
+            await handleMFA(response);
+        }
+    }
+
+    async function loginWithEmailAndPassword(email: string, password: string) {
+        const response = await login(email, password);
+
+        if (response === true) {
+            await router.push('/user');
+        }else {
+            await handleMFA(response);
+        }
+    }
+
+    async function handleMFA(response: any) {
+        if (response.code === 'auth/multi-factor-auth-required' && recaptcha) {
+            const data = await verifyUserMFA(
+                response,
+                recaptcha,
+                0
+            )
+
+            if (!data) {
+                notify('Something went wrong.');
+            }else {
+                const {verificationId, resolver} = data;
+                setVerificationId(verificationId);
+                setResolver(resolver);
+            }
+        }else {
+            notify('Something went wrong');
+        }
+    }
+
+    return (
+        <>
+            {
+                !verificationId &&
+                !resolver &&
+                <Login
+                    loginWithGoogle={loginWithGoogle}
+                    loginWithEmailAndPassword={loginWithEmailAndPassword}
+                />
+            }
+            {
+                verificationId &&
+                resolver &&
+                <CodeSignIn
+                    verificationId={verificationId}
+                    resolver={resolver}
+                />
+            }
+            <div id='sign-in'></div>
+        </>
+    )
+}
+[FILE_END]app\login\page.tsx
+
+[DIR_END]app\login
+
+[DIR_START]app\mfa
+[FILE_START]app\mfa\page.tsx
+'use client'
+import {useCurrentUser} from "@/hooks/useCurrentUser";
+import {useRouter} from "next/navigation";
+import {Loading} from "@/components/Loading";
+import {CreateMultiFactorAuthentication} from "@/components/CreateMultiFactorAuthentication";
+
+export default function MFAPage() {
+    const currentUser = useCurrentUser();
+    const router = useRouter();
+
+    if (currentUser === 'loading') {
+        return <Loading />
+    }
+
+    if (!currentUser) {
+        void router.push('/login');
+    }
+
+    return <CreateMultiFactorAuthentication currentUser={currentUser} />
+}
+[FILE_END]app\mfa\page.tsx
+
+[DIR_END]app\mfa
+
+[FILE_START]app\page.tsx
+"use-client"
+import Image from "next/image";
+
+export default function Home() {
+  return (
+    <>
+      Firebase MFA
+    </>    
+  );
+}
+
+[FILE_END]app\page.tsx
+
+[DIR_START]app\sign-up
+[FILE_START]app\sign-up\page.tsx
+'use client'
+import { SignUp } from "@/components/SignUp";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useRouter } from "next/navigation";
+import { Loading } from "@/components/Loading";
+import { useEffect } from "react";
+
+export default function SignUpPage() {
+    const currentUser = useCurrentUser();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (currentUser && currentUser !== 'loading') {
+            void router.push('/user');
+        }
+    }, [currentUser, router]);
+
+    if (currentUser === 'loading') {
+        return <Loading />;
+    }
+
+    return <SignUp />;
+}
+
+[FILE_END]app\sign-up\page.tsx
+
+[DIR_END]app\sign-up
+
+[DIR_START]app\user
+[FILE_START]app\user\page.tsx
+'use client'
+import { useEffect } from "react";
+import { UserComponent } from "@/components/UserComponent";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { Loading } from "@/components/Loading";
+import { useRouter } from "next/navigation";
+
+export default function UserPage() {
+    const currentUser = useCurrentUser();
+    const router = useRouter();
+
+    useEffect(() => {
+      if (currentUser === null) {
+        void router.push('login');
+      }
+    }, [currentUser, router]);
+
+    if (currentUser === 'loading') {
+        return <Loading />;
+    }
+
+    // While waiting for router.push to complete, you can return null
+    if (!currentUser) {
+        return null;
+    }
+
+    return <UserComponent currentUser={currentUser} />;
+}
+
+[FILE_END]app\user\page.tsx
+
+[DIR_END]app\user
+
+[DIR_END]app
+
+[DIR_START]components
+[FILE_START]components\Code.tsx
+'use client'
+import { useRouter } from "next/navigation";
+import { Input } from "@/components/Input";
+
+type Props = {
+  getCode: (code: string) => void;
+};
+
+export function Code({ getCode }: Props) {
+  const router = useRouter();
+  let code = new Array<string>(6).fill("");
+
+  function handleClick() {
+    const finalCode = code.reduce((previousValue, currentValue) => {
+      return previousValue.concat(currentValue);
+    });
+    getCode(finalCode);
+  }
+
+  return (
+    <div className="bg-white flex flex-col p-5 md:p-6  border-2 border-palladium rounded-xl w-full sm:max-w-[440px]">
+      <div className="flex justify-between">
+        <div>
+          <h1 className="font-medium text-[22px] leading-[130%] md:mr-8">
+            Verify your phone
+          </h1>
+          <p className="text-slate-500 mt-2 text-base">
+            We sent you an SMS code to your phone number
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-x-4 mt-6 md:mt-8 pb-4">
+        {code.map((value, index) => {
+          return (
+            <Input
+              key={index}
+              index={index}
+              getValue={(value, index) => {
+                code[index] = value;
+              }}
+            />
+          );
+        })}
+      </div>
+      <div className="flex mt-4 gap-x-4">
+        <button
+          onClick={() => void router.push("/user")}
+          className="rounded-xl flex gap-x-4 mb-8 text-black h-11 w-1/2 items-center justify-center px-6 border border-gray-500"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleClick}
+          className="bg-black rounded-xl flex h-11 w-1/2 items-center justify-center px-6"
+        >
+          <span className="text-base font-light text-white">Submit</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+[FILE_END]components\Code.tsx
+
+[FILE_START]components\CodeSignIn.tsx
+'use client'
+import {MultiFactorResolver} from "@firebase/auth";
+import {Code} from "@/components/Code";
+import {verifyUserEnrolled} from "@/firebase/authentication";
+import {useRouter} from "next/navigation";
+import {notify} from "@/utils/notify";
+
+type Props = {
+    verificationId: string,
+    resolver: MultiFactorResolver
+}
+export function CodeSignIn({verificationId, resolver}: Props) {
+    const router = useRouter();
+
+    async function getCode(code: string) {
+        const response = await verifyUserEnrolled(
+            {
+                verificationId,
+                resolver
+            },
+            code
+        );
+
+        if (response) {
+            await router.push('/user');
+        }else {
+            notify('Something went wrong.');
+        }
+    }
+    return (
+        <Code
+            getCode={getCode}
+        />
+    )
+}
+[FILE_END]components\CodeSignIn.tsx
+
+[FILE_START]components\CodeSignup.tsx
+'use client'
+import {Code} from "@/components/Code";
+import {User} from "@firebase/auth";
+import {enrollUser} from "@/firebase/authentication";
+import {useRouter} from "next/navigation";
+import {notify} from "@/utils/notify";
+
+type Props = {
+    currentUser: User,
+    verificationCodeId: string
+}
+
+export function CodeSignup({currentUser, verificationCodeId}: Props) {
+    const router = useRouter();
+
+    async function getCode(code: string) {
+        const response = await enrollUser(
+            currentUser,
+            verificationCodeId,
+            code
+        );
+
+        if (response) {
+            await router.push('/user');
+        }else {
+            notify('Something went wrong.');
+        }
+    }
+
+    return <Code getCode={getCode} />
+}
+[FILE_END]components\CodeSignup.tsx
+
+[FILE_START]components\CreateMultiFactorAuthentication.tsx
+'use client'
 import {User} from "@firebase/auth";
 import {useRecaptcha} from "@/hooks/useRecaptcha";
 import {PhoneRegistration} from "@/components/PhoneRegistration";
@@ -1098,6 +2146,455 @@ export default nextConfig;
   },
   "dependencies": {
     "firebase": "^11.5.0",
+    "next": "15.2.3",
+    "phosphor-react": "^1.4.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.5.2"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.2.3",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+
+[FILE_END]package.json
+
+[FILE_START]postcss.config.mjs
+const config = {
+  plugins: ["@tailwindcss/postcss"],
+};
+
+export default config;
+
+[FILE_END]postcss.config.mjs
+
+[DIR_START]public
+[DIR_END]public
+
+[FILE_START]README.md
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# mf-auth
+
+[FILE_END]README.md
+
+[DIR_START]utils
+[FILE_START]utils\notify.ts
+"use client"
+import toast from "react-hot-toast";
+
+export function notify(message: string) {
+    toast(message, {
+        duration: 5000,
+        position: "top-right"
+    });
+}
+[FILE_END]utils\notify.ts
+
+[DIR_END]utils
+
+
+[FILE_END]files.txt
+
+[DIR_START]firebase
+[FILE_START]firebase\authentication.ts
+import {
+  ApplicationVerifier,
+  Auth,
+  createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  getAuth,
+  getMultiFactorResolver,
+  GoogleAuthProvider,
+  multiFactor,
+  MultiFactorError,
+  MultiFactorResolver,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  reauthenticateWithCredential,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  User,
+} from "@firebase/auth";
+import { app } from "@/firebase/init";
+
+export const auth: Auth = getAuth(app);
+
+/* ---------------------------------------------------------------------------
+   Reauthenticate the user before sensitive operations (like enrolling MFA).
+   For email/password users, we ask for their current password.
+--------------------------------------------------------------------------- */
+export async function reauthenticateUser(
+  user: User,
+  currentPassword: string | undefined
+): Promise<boolean> {
+  if (!currentPassword) {
+    console.error("❌ Reauthentication failed: Password is required.");
+    return false;
+  }
+
+  try {
+    const credential = EmailAuthProvider.credential(user.email!, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+    console.log("✅ User reauthenticated successfully.");
+    return true;
+  } catch (error) {
+    console.error("❌ Reauthentication error:", error);
+    return false;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
+   Basic Sign In / Sign Up / Sign Out functions
+--------------------------------------------------------------------------- */
+export async function signInWithGoogle(): Promise<any> {
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+    return true;
+  } catch (e) {
+    return e;
+  }
+}
+
+export async function signUp(email: string, password: string): Promise<boolean> {
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+    return true;
+  } catch (e) {
+    console.error("Sign-up error:", e);
+    return false;
+  }
+}
+
+export async function login(email: string, password: string): Promise<any> {
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    return true;
+  } catch (e) {
+    // Return error to allow handling MFA-required error codes
+    return e;
+  }
+}
+
+export async function logout(): Promise<boolean> {
+  try {
+    await signOut(auth);
+    return true;
+  } catch (e) {
+    console.error("Logout error:", e);
+    return false;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Utility function to check if the user has any enrolled MFA factors
+--------------------------------------------------------------------------- */
+export function verifyIfUserIsEnrolled(user: User) {
+  const enrolledFactors = multiFactor(user).enrolledFactors;
+  return enrolledFactors.length > 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Email verification
+--------------------------------------------------------------------------- */
+export async function verifyUserEmail(user: User): Promise<boolean> {
+  try {
+    await sendEmailVerification(user);
+    return true;
+  } catch (e) {
+    console.error("Email verification error:", e);
+    return false;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   MFA Enrollment Flow (Activation)
+   1. Before calling these, ensure the user is reauthenticated.
+   2. verifyPhoneNumber sends an SMS code for enrollment.
+--------------------------------------------------------------------------- */
+export async function verifyPhoneNumber(
+  user: User,
+  phoneNumber: string,
+  recaptchaVerifier: ApplicationVerifier
+): Promise<false | string> {
+  try {
+    const session = await multiFactor(user).getSession();
+    if (!session) {
+      console.error("❌ Failed to get MFA session. Please reauthenticate.");
+      return false;
+    }
+    const phoneInfoOptions = { phoneNumber, session };
+    const phoneAuthProvider = new PhoneAuthProvider(auth);
+    return await phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, recaptchaVerifier);
+  } catch (e) {
+    console.error("❌ Error during phone verification (enrollment):", e);
+    return false;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Enroll the user in MFA after verifying the phone number via SMS.
+--------------------------------------------------------------------------- */
+export async function enrollUser(
+  user: User,
+  verificationCodeId: string,
+  verificationCode: string
+) {
+  const phoneAuthCredential = PhoneAuthProvider.credential(
+    verificationCodeId,
+    verificationCode
+  );
+  const multiFactorAssertion =
+    PhoneMultiFactorGenerator.assertion(phoneAuthCredential);
+
+  try {
+    await multiFactor(user).enroll(
+      multiFactorAssertion,
+      "Personal Phone Number"
+    );
+    console.log("✅ MFA enrollment successful.");
+    return true;
+  } catch (e) {
+    console.error("❌ MFA enrollment failed:", e);
+    return false;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   MFA Sign-In Resolution Flow
+   Triggered when a sign-in error with code "auth/multi-factor-auth-required"
+   is encountered. This function sends an SMS code to resolve the sign-in.
+--------------------------------------------------------------------------- */
+export async function verifyUserMFA(
+  error: MultiFactorError,
+  recaptchaVerifier: ApplicationVerifier,
+  selectedIndex: number
+): Promise<false | { verificationId: string; resolver: MultiFactorResolver } | void> {
+  try {
+    const resolver = getMultiFactorResolver(auth, error);
+
+    if (!resolver.hints || resolver.hints.length === 0) {
+      console.error("No MFA factors enrolled for this user. Enroll MFA first.");
+      return false;
+    }
+
+    if (selectedIndex < 0 || selectedIndex >= resolver.hints.length) {
+      console.error("Invalid factor selection index.");
+      return false;
+    }
+
+    if (
+      resolver.hints[selectedIndex].factorId ===
+      PhoneMultiFactorGenerator.FACTOR_ID
+    ) {
+      const phoneInfoOptions = {
+        multiFactorHint: resolver.hints[selectedIndex],
+        session: resolver.session,
+      };
+
+      const phoneAuthProvider = new PhoneAuthProvider(auth);
+
+      if (!recaptchaVerifier) {
+        console.error("RecaptchaVerifier is not initialized.");
+        return false;
+      }
+
+      const verificationId = await phoneAuthProvider.verifyPhoneNumber(
+        phoneInfoOptions,
+        recaptchaVerifier
+      );
+      return { verificationId, resolver };
+    } else {
+      console.error("Selected MFA factor is not phone-based.");
+      return false;
+    }
+  } catch (e) {
+    console.error("Error during MFA sign-in resolution:", e);
+    return false;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Complete MFA sign-in resolution by verifying the SMS code provided by the user.
+--------------------------------------------------------------------------- */
+export async function verifyUserEnrolled(
+  verificationMFA: { verificationId: string; resolver: MultiFactorResolver },
+  verificationCode: string
+) {
+  const { verificationId, resolver } = verificationMFA;
+  const credentials = PhoneAuthProvider.credential(
+    verificationId,
+    verificationCode
+  );
+  const multiFactorAssertion = PhoneMultiFactorGenerator.assertion(credentials);
+
+  try {
+    await resolver.resolveSignIn(multiFactorAssertion);
+    console.log("MFA sign-in resolved successfully.");
+    return true;
+  } catch (e) {
+    console.error("MFA sign-in resolution failed:", e);
+    return false;
+  }
+}
+
+
+
+
+[FILE_END]firebase\authentication.ts
+
+[FILE_START]firebase\init.ts
+import {FirebaseApp, getApp, getApps, initializeApp} from "@firebase/app";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCnEUnD4vgRS9gNu8iAEw0lNxTTc_94Bg4",
+  authDomain: "fir-mfa-e8bd4.firebaseapp.com",
+  projectId: "fir-mfa-e8bd4",
+  storageBucket: "fir-mfa-e8bd4.firebasestorage.app",
+  messagingSenderId: "576561087289",
+  appId: "1:576561087289:web:74053cc66472b4f121dee8"
+};
+
+let app: FirebaseApp;
+
+if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+}else {
+    app = getApp();
+}
+
+export {app}
+[FILE_END]firebase\init.ts
+
+[DIR_END]firebase
+
+[DIR_START]hooks
+[FILE_START]hooks\useCurrentUser.tsx
+'use client'
+import {useEffect, useState} from "react";
+import {onAuthStateChanged, User} from "@firebase/auth";
+import {auth} from "@/firebase/authentication";
+
+export function useCurrentUser() {
+    const [currentUser, setCurrentUser] = useState<User | null | "loading">("loading");
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setCurrentUser(user);
+        });
+
+        return () => unsubscribe();
+    })
+
+    return currentUser;
+}
+[FILE_END]hooks\useCurrentUser.tsx
+
+[FILE_START]hooks\useRecaptcha.tsx
+'use client'
+import {useEffect, useState} from "react";
+import {ApplicationVerifier, RecaptchaVerifier} from "@firebase/auth";
+import {auth} from "@/firebase/authentication";
+
+export function useRecaptcha(componentId: string) {
+    const [recaptcha, setRecaptcha] = useState<ApplicationVerifier>();
+
+    useEffect(() => {
+        if (!auth) {
+            console.error("❌ Firebase Auth is not initialized.");
+            return;
+        }
+
+        try {
+            const recaptchaVerifier = new RecaptchaVerifier(auth, componentId, {
+                size: "invisible"
+            });
+
+            setRecaptcha(recaptchaVerifier);
+
+            return () => recaptchaVerifier.clear();
+        } catch (error) {
+            console.error("❌ Recaptcha initialization failed:", error);
+        }
+    }, [componentId]);
+
+    return recaptcha;
+}
+
+[FILE_END]hooks\useRecaptcha.tsx
+
+[DIR_END]hooks
+
+[FILE_START]next.config.ts
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+
+[FILE_END]next.config.ts
+
+[FILE_START]package.json
+{
+  "name": "mf-auth",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "firebase": "^11.5.0",
+    "git-repo-parser": "^2.0.7",
     "next": "15.2.3",
     "phosphor-react": "^1.4.1",
     "react": "^19.0.0",
