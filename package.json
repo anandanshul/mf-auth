@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "firebase": "^11.5.0",
+    "git-repo-parser": "^2.0.7",
     "next": "15.2.3",
     "phosphor-react": "^1.4.1",
     "react": "^19.0.0",

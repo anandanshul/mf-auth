@@ -1,10 +1,10 @@
 'use client'
+import {useState} from "react";
 import {User} from "@firebase/auth";
 import {useRecaptcha} from "@/hooks/useRecaptcha";
 import {PhoneRegistration} from "@/components/PhoneRegistration";
-import {verifyPhoneNumber} from "@/firebase/authentication";
+import {verifyPhoneNumber, reauthenticateUser} from "@/firebase/authentication";
 import {notify} from "@/utils/notify";
-import {useState} from "react";
 import {CodeSignup} from "@/components/CodeSignup";
 
 type Props = {
@@ -13,21 +13,24 @@ type Props = {
 export function CreateMultiFactorAuthentication({currentUser}: Props) {
     const recaptcha = useRecaptcha('sign-up');
     const [verificationCodeId, setVerificationCodeId] = useState<string | null>(null);
+    const [password, setPassword] = useState<string>("");
 
     async function getPhoneNumber(phoneNumber: string) {
-        if (!currentUser || !recaptcha) {
+        if (!currentUser || !recaptcha || !password) {
+            notify("❌ Please enter your password before proceeding.");
             return;
         }
 
-        const verificationId = await verifyPhoneNumber(
-            currentUser,
-            phoneNumber,
-            recaptcha
-        );
+        const reauthSuccess = await reauthenticateUser(currentUser, password);
+        if (!reauthSuccess) {
+            notify("❌ Reauthentication failed. Try again.");
+            return;
+        }
 
+        const verificationId = await verifyPhoneNumber(currentUser, phoneNumber, recaptcha);
         if (!verificationId) {
-            notify('Something went wrong.');
-        }else {
+            notify("❌ Something went wrong. Try again.");
+        } else {
             setVerificationCodeId(verificationId);
         }
     }
@@ -36,17 +39,21 @@ export function CreateMultiFactorAuthentication({currentUser}: Props) {
         <>
             {
                 !verificationCodeId &&
-                <PhoneRegistration
-                    getPhoneNumber={getPhoneNumber}
-                />
+                <>
+                    <input
+                        type="password"
+                        placeholder="Enter current password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="border rounded-md px-4 py-2 w-full"
+                    />
+                    <PhoneRegistration getPhoneNumber={getPhoneNumber} />
+                </>
             }
             {
                 verificationCodeId &&
                 currentUser &&
-                <CodeSignup
-                    currentUser={currentUser}
-                    verificationCodeId={verificationCodeId}
-                />
+                <CodeSignup currentUser={currentUser} verificationCodeId={verificationCodeId} />
             }
             <div id='sign-up'></div>
         </>

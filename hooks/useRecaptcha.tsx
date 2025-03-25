@@ -7,15 +7,21 @@ export function useRecaptcha(componentId: string) {
     const [recaptcha, setRecaptcha] = useState<ApplicationVerifier>();
 
     useEffect(() => {
-        const recaptchaVerifier = new RecaptchaVerifier(auth, componentId, {
-            "size": "invisible",
-            "callback": () => {}
-        });
+        if (!auth) {
+            console.error("❌ Firebase Auth is not initialized.");
+            return;
+        }
 
-        setRecaptcha(recaptchaVerifier);
+        try {
+            const recaptchaVerifier = new RecaptchaVerifier(auth, componentId, {
+                size: "invisible"
+            });
 
-        return () => {
-            recaptchaVerifier.clear();
+            setRecaptcha(recaptchaVerifier);
+
+            return () => recaptchaVerifier.clear();
+        } catch (error) {
+            console.error("❌ Recaptcha initialization failed:", error);
         }
     }, [componentId]);
 
